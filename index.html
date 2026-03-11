@@ -383,7 +383,7 @@ function filterStatus(s) {
   renderUsers();
 }
 
-function startPolling() { if(pollTimer) clearInterval(pollTimer); pollTimer=setInterval(loadData,30000); }
+function startPolling() { if(pollTimer) clearInterval(pollTimer); pollTimer=setInterval(loadData,60000); }
 function showDashboard() { document.getElementById('loginScreen').style.display='none'; document.getElementById('dashboard').style.display='block'; }
 function setLoading(on) { document.getElementById('loadingBar').style.display=on?'block':'none'; }
 function showError(msg) { document.getElementById('errorText').textContent=msg; document.getElementById('errorBanner').classList.add('visible'); }

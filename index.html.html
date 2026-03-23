@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>entconn Teams Client Dashboard</title>
+  <script src="https://alcdn.msauth.net/browser/2.38.0/js/msal-browser.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --blue:#1a5faa; --blue-dark:#0f3d72; --blue-light:#e8f1fb;
+      --orange:#f07820; --orange-light:#fff3e8;
+      --bg:#f2f4f8; --surface:#ffffff; --border:#dde2ed;
+      --text:#1a1f2e; --muted:#6b7280; --faint:#9ca3af;
+      --available:#16a34a; --busy:#dc2626; --away:#d97706;
+      --dnd:#7c3aed; --brb:#ea580c; --oncall:#0891b2; --offline:#6b7280;
+      --radius:12px; --font:'Plus Jakarta Sans',sans-serif;
+    }
+    html { scroll-behavior:smooth; }
+    body { font-family:var(--font); background:var(--bg); color:var(--text); min-height:100vh; }
+
+    /* LOGIN */
+    .login-screen { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; background:var(--bg); }
+    .login-card { width:100%; max-width:420px; background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:48px 40px; text-align:center; box-shadow:0 4px 6px rgba(0,0,0,.04),0 20px 48px rgba(0,0,0,.09); position:relative; overflow:hidden; }
+    .login-card::before { content:''; position:absolute; top:0; left:0; right:0; height:4px; background:linear-gradient(90deg,var(--blue-dark),var(--blue),#2d7dd2); }
+    .login-logo { margin:0 auto 28px; display:flex; align-items:center; justify-content:center; }
+    .login-divider { width:40px; height:2px; background:var(--orange); margin:0 auto 20px; border-radius:2px; opacity:.5; }
+    .login-card h1 { font-size:20px; font-weight:800; color:var(--text); margin-bottom:10px; }
+    .login-card p { font-size:13px; color:var(--muted); line-height:1.7; margin-bottom:32px; }
+    .btn-signin { width:100%; padding:13px; border-radius:10px; background:linear-gradient(135deg,var(--blue-dark),var(--blue)); border:none; color:#fff; font-family:var(--font); font-size:14px; font-weight:700; cursor:pointer; box-shadow:0 4px 14px rgba(26,95,170,.35); transition:all .2s; display:flex; align-items:center; justify-content:center; gap:8px; }
+    .btn-signin:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(26,95,170,.4); }
+    .login-note { font-size:11px; color:var(--faint); margin-top:16px; line-height:1.6; }
+
+    /* HEADER */
+    .top-stripe { background:var(--blue-dark); height:4px; width:100%; }
+    .site-header { background:var(--surface); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:100; box-shadow:0 1px 12px rgba(0,0,0,.07); }
+    .header-inner { max-width:1440px; margin:0 auto; padding:0 40px; height:68px; display:flex; align-items:center; justify-content:space-between; gap:24px; }
+    .brand { display:flex; align-items:center; gap:14px; }
+    .brand-sep { width:1px; height:28px; background:var(--border); }
+    .brand-title { font-size:14px; font-weight:700; color:var(--text); }
+    .brand-sub { font-size:11px; color:var(--faint); margin-top:1px; }
+    .header-right { display:flex; align-items:center; gap:10px; }
+    .pill-live { display:flex; align-items:center; gap:6px; padding:5px 12px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:100px; font-size:10px; font-weight:700; color:#16a34a; }
+    .live-dot { width:6px; height:6px; border-radius:50%; background:#16a34a; animation:pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(22,163,74,.4)} 50%{opacity:.7;box-shadow:0 0 0 4px rgba(22,163,74,0)} }
+    .pill-time { font-size:11px; color:var(--faint); }
+    .hbtn { padding:7px 16px; border-radius:8px; border:1.5px solid var(--border); background:var(--surface); color:var(--muted); font-size:12px; font-weight:600; cursor:pointer; font-family:var(--font); transition:all .15s; }
+    .hbtn:hover { background:var(--bg); color:var(--text); }
+    .hbtn-orange { background:var(--orange); border-color:var(--orange); color:#fff; }
+    .hbtn-orange:hover { background:#d96a18; border-color:#d96a18; }
+
+    /* PAGE */
+    .wrap { max-width:1440px; margin:0 auto; padding:32px 40px 56px; }
+    .error-bar { background:#fef2f2; border:1px solid #fecaca; border-radius:10px; padding:12px 16px; margin-bottom:20px; display:none; align-items:center; gap:10px; font-size:13px; color:#dc2626; }
+    .error-bar.on { display:flex; }
+    .load-bar { height:3px; border-radius:2px; margin-bottom:24px; background:linear-gradient(90deg,transparent,var(--blue),var(--orange),var(--blue),transparent); background-size:200% 100%; animation:shimmer 1.6s infinite; display:none; }
+    .load-bar.on { display:block; }
+    @keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
+
+    /* KPI */
+    .kpi-row { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:24px; }
+    .kpi-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:20px 22px; display:flex; align-items:center; gap:16px; box-shadow:0 1px 3px rgba(0,0,0,.04); transition:all .2s; }
+    .kpi-card:hover { box-shadow:0 4px 16px rgba(0,0,0,.08); transform:translateY(-1px); }
+    .kpi-icon { width:46px; height:46px; border-radius:12px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:20px; }
+    .kpi-val { font-size:32px; font-weight:800; color:var(--text); line-height:1; letter-spacing:-1px; }
+    .kpi-lbl { font-size:11px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.8px; margin-top:4px; }
+
+    /* STATUS */
+    .status-row { display:grid; grid-template-columns:repeat(7,1fr); gap:10px; margin-bottom:28px; }
+    .stat-tile { background:var(--surface); border:1.5px solid var(--border); border-radius:var(--radius); padding:16px 10px 14px; cursor:pointer; text-align:center; transition:all .2s; box-shadow:0 1px 3px rgba(0,0,0,.04); }
+    .stat-tile:hover { border-color:var(--tile-color); transform:translateY(-2px); box-shadow:0 4px 14px rgba(0,0,0,.08); }
+    .stat-tile.active { border-color:var(--tile-color); background:color-mix(in srgb,var(--tile-color) 6%,white); box-shadow:0 0 0 3px color-mix(in srgb,var(--tile-color) 15%,transparent); }
+    .stat-tile.active .tnum { color:var(--tile-color); }
+    .tlbl { font-size:9px; font-weight:700; color:var(--tile-color); text-transform:uppercase; letter-spacing:.8px; margin-bottom:8px; display:flex; align-items:center; justify-content:center; gap:4px; }
+    .tlbl-dot { width:6px; height:6px; border-radius:50%; background:var(--tile-color); flex-shrink:0; }
+    .tnum { font-size:36px; font-weight:800; color:var(--text); line-height:1; letter-spacing:-1px; transition:color .2s; }
+
+    /* MAIN */
+    .main { display:grid; grid-template-columns:1fr 360px; gap:24px; align-items:start; }
+    .section-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+    .section-label { font-size:11px; font-weight:700; color:var(--faint); text-transform:uppercase; letter-spacing:1.5px; }
+    .btn-clear { display:none; font-size:11px; color:var(--muted); background:var(--surface); border:1.5px solid var(--border); border-radius:6px; padding:4px 10px; cursor:pointer; font-family:var(--font); transition:all .15s; }
+    .btn-clear:hover { color:var(--orange); border-color:var(--orange); }
+
+    /* USER CARDS */
+    .cards-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .user-card { background:var(--surface); border:1.5px solid var(--border); border-radius:var(--radius); padding:16px 18px; display:flex; align-items:center; gap:14px; transition:all .2s; animation:fadeUp .35s ease both; box-shadow:0 1px 3px rgba(0,0,0,.04); position:relative; overflow:hidden; }
+    .user-card::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; background:var(--card-color); }
+    .user-card:hover { border-color:color-mix(in srgb,var(--card-color) 35%,#dde2ed); transform:translateY(-2px); box-shadow:0 6px 20px rgba(0,0,0,.09); }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+    .avatar-wrap { position:relative; flex-shrink:0; }
+    .avatar { width:46px; height:46px; border-radius:12px; background:color-mix(in srgb,var(--card-color) 10%,var(--blue-light)); border:1.5px solid color-mix(in srgb,var(--card-color) 22%,var(--border)); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:14px; color:var(--card-color); font-family:var(--font); }
+    .avatar-dot { position:absolute; bottom:-2px; right:-2px; width:13px; height:13px; border-radius:50%; background:var(--card-color); border:2.5px solid var(--surface); box-shadow:0 1px 4px rgba(0,0,0,.15); }
+    .uinfo { flex:1; min-width:0; }
+    .uname { font-size:13px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:5px; }
+    .ubadge { display:inline-flex; align-items:center; gap:4px; padding:2px 9px; border-radius:100px; background:color-mix(in srgb,var(--card-color) 10%,white); border:1px solid color-mix(in srgb,var(--card-color) 20%,transparent); font-size:9px; font-weight:700; color:var(--card-color); text-transform:uppercase; letter-spacing:.4px; }
+    .ubadge-dot { width:4px; height:4px; border-radius:50%; background:var(--card-color); }
+    .udur { text-align:right; flex-shrink:0; }
+    .udur-val { font-size:16px; font-weight:700; color:var(--text); line-height:1; letter-spacing:-.3px; }
+    .udur-since { font-size:10px; color:var(--faint); margin-top:3px; }
+    .empty { padding:48px 20px; text-align:center; color:var(--faint); }
+    .empty .ico { font-size:28px; margin-bottom:10px; opacity:.5; }
+    .empty p { font-size:13px; }
+
+    /* LOG */
+    .log-panel { background:var(--surface); border:1.5px solid var(--border); border-radius:var(--radius); overflow:hidden; display:flex; flex-direction:column; max-height:700px; position:sticky; top:88px; box-shadow:0 1px 3px rgba(0,0,0,.04); }
+    .log-top { padding:14px 18px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; flex-shrink:0; background:var(--blue-light); }
+    .log-title { font-size:11px; font-weight:700; color:var(--blue); text-transform:uppercase; letter-spacing:1.5px; }
+    .log-badge { background:var(--orange); color:#fff; font-size:10px; font-weight:700; padding:2px 8px; border-radius:100px; }
+    .log-scroll { overflow-y:auto; flex:1; }
+    .log-scroll::-webkit-scrollbar { width:3px; }
+    .log-scroll::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+    .log-row { padding:11px 16px; border-bottom:1px solid var(--border); animation:fadeUp .3s ease both; transition:background .15s; display:flex; align-items:center; gap:10px; }
+    .log-row:last-child { border-bottom:none; }
+    .log-row:hover { background:var(--bg); }
+    .log-avatar { width:30px; height:30px; border-radius:8px; flex-shrink:0; background:var(--blue-light); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:800; color:var(--blue); }
+    .log-info { flex:1; min-width:0; }
+    .log-who { font-size:12px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:3px; }
+    .log-to { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:100px; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; }
+    .log-when { font-size:10px; color:var(--faint); flex-shrink:0; }
+    .log-stats { border-top:1px solid var(--border); flex-shrink:0; display:grid; grid-template-columns:repeat(4,1fr); background:var(--bg); }
+    .log-stat { text-align:center; padding:12px 0; border-right:1px solid var(--border); }
+    .log-stat:last-child { border-right:none; }
+    .log-stat-val { font-size:20px; font-weight:800; color:var(--text); letter-spacing:-.5px; }
+    .log-stat-lbl { font-size:9px; font-weight:600; color:var(--faint); text-transform:uppercase; letter-spacing:.8px; margin-top:2px; }
+
+    /* FOOTER */
+    .footer { margin-top:36px; padding-top:20px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+    .footer-l { font-size:12px; color:var(--muted); }
+    .footer-l strong { color:var(--blue); }
+    .footer-r { font-size:11px; color:var(--faint); }
+
+    @media(max-width:1200px){ .main{grid-template-columns:1fr} .log-panel{max-height:400px;position:static} }
+    @media(max-width:900px){ .kpi-row{grid-template-columns:repeat(2,1fr)} .status-row{grid-template-columns:repeat(4,1fr)} }
+    @media(max-width:600px){ .status-row{grid-template-columns:repeat(2,1fr)} .cards-grid{grid-template-columns:1fr} .wrap{padding:24px 16px 40px} .header-inner{padding:0 16px} .kpi-row{grid-template-columns:repeat(2,1fr)} }
+  </style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-card">
+    <div class="login-logo">
+      <svg height="42" viewBox="0 0 210 42" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <text x="0" y="32" font-family="Plus Jakarta Sans,sans-serif" font-weight="800" font-size="32" fill="#1a5faa" letter-spacing="-1">ent</text>
+        <text x="60" y="32" font-family="Plus Jakarta Sans,sans-serif" font-weight="800" font-size="32" fill="#f07820" letter-spacing="-1">conn</text>
+      </svg>
+    </div>
+    <div class="login-divider"></div>
+    <h1>Teams Client Dashboard</h1>
+    <p>Sign in with your Microsoft 365 work account to view live Teams presence data for your organisation.</p>
+    <button class="btn-signin" onclick="signIn()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      Sign in with Microsoft
+    </button>
+    <p class="login-note">Authentication is handled directly by Microsoft — your credentials are never stored on any server.</p>
+  </div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard" style="display:none">
+  <div class="top-stripe"></div>
+  <div class="site-header">
+    <div class="header-inner">
+      <div class="brand">
+        <svg height="34" viewBox="0 0 210 42" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <text x="0" y="32" font-family="Plus Jakarta Sans,sans-serif" font-weight="800" font-size="32" fill="#1a5faa" letter-spacing="-1">ent</text>
+          <text x="60" y="32" font-family="Plus Jakarta Sans,sans-serif" font-weight="800" font-size="32" fill="#f07820" letter-spacing="-1">conn</text>
+        </svg>
+        <div class="brand-sep"></div>
+        <div>
+          <div class="brand-title">Teams Client Dashboard</div>
+          <div class="brand-sub" id="userCount">Loading...</div>
+        </div>
+      </div>
+      <div class="header-right">
+        <div class="pill-live"><div class="live-dot"></div>LIVE</div>
+        <span class="pill-time" id="lastUpdated">—</span>
+        <button class="hbtn" onclick="loadData()">↺ Refresh</button>
+        <button class="hbtn hbtn-orange" onclick="signOut()">Sign out</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="error-bar" id="errorBanner"><span>⚠</span><span id="errorText">Error</span><button class="hbtn" style="margin-left:auto" onclick="loadData()">Retry</button></div>
+    <div class="load-bar" id="loadingBar"></div>
+
+    <div class="kpi-row">
+      <div class="kpi-card"><div class="kpi-icon" style="background:var(--blue-light)">👥</div><div><div class="kpi-val" id="kpiTotal">0</div><div class="kpi-lbl">Total Users</div></div></div>
+      <div class="kpi-card"><div class="kpi-icon" style="background:#f0fdf4">🟢</div><div><div class="kpi-val" id="kpiAvailable">0</div><div class="kpi-lbl">Available</div></div></div>
+      <div class="kpi-card"><div class="kpi-icon" style="background:#ecfeff">📞</div><div><div class="kpi-val" id="kpiOnCall">0</div><div class="kpi-lbl">On a Call</div></div></div>
+      <div class="kpi-card"><div class="kpi-icon" style="background:var(--bg)">💤</div><div><div class="kpi-val" id="kpiOffline">0</div><div class="kpi-lbl">Offline</div></div></div>
+    </div>
+
+    <div class="status-row">
+      <div class="stat-tile" style="--tile-color:var(--available)" onclick="filterStatus('Available')" id="card-Available"><div class="tlbl"><span class="tlbl-dot"></span>Available</div><div class="tnum" id="count-Available">0</div></div>
+      <div class="stat-tile" style="--tile-color:var(--oncall)" onclick="filterStatus('OnACall')" id="card-OnACall"><div class="tlbl"><span class="tlbl-dot"></span>On a Call</div><div class="tnum" id="count-OnACall">0</div></div>
+      <div class="stat-tile" style="--tile-color:var(--busy)" onclick="filterStatus('Busy')" id="card-Busy"><div class="tlbl"><span class="tlbl-dot"></span>Busy</div><div class="tnum" id="count-Busy">0</div></div>
+      <div class="stat-tile" style="--tile-color:var(--away)" onclick="filterStatus('Away')" id="card-Away"><div class="tlbl"><span class="tlbl-dot"></span>Away</div><div class="tnum" id="count-Away">0</div></div>
+      <div class="stat-tile" style="--tile-color:var(--dnd)" onclick="filterStatus('DoNotDisturb')" id="card-DoNotDisturb"><div class="tlbl"><span class="tlbl-dot"></span>Do Not Disturb</div><div class="tnum" id="count-DoNotDisturb">0</div></div>
+      <div class="stat-tile" style="--tile-color:var(--brb)" onclick="filterStatus('BeRightBack')" id="card-BeRightBack"><div class="tlbl"><span class="tlbl-dot"></span>Be Right Back</div><div class="tnum" id="count-BeRightBack">0</div></div>
+      <div class="stat-tile" style="--tile-color:var(--offline)" onclick="filterStatus('Offline')" id="card-Offline"><div class="tlbl"><span class="tlbl-dot"></span>Offline</div><div class="tnum" id="count-Offline">0</div></div>
+    </div>
+
+    <div class="main">
+      <div>
+        <div class="section-head">
+          <span class="section-label" id="sectionTitle">All Users</span>
+          <button class="btn-clear" id="clearFilter" onclick="filterStatus(null)">✕ Clear filter</button>
+        </div>
+        <div class="cards-grid" id="userGrid">
+          <div class="empty" style="grid-column:1/-1"><div class="ico">⏳</div><p>Loading presence data...</p></div>
+        </div>
+      </div>
+      <div>
+        <div class="section-head"><span class="section-label">Activity Log</span></div>
+        <div class="log-panel">
+          <div class="log-top">
+            <span class="log-title">Recent Status Changes</span>
+            <span class="log-badge" id="logCount">0</span>
+          </div>
+          <div class="log-scroll" id="logBody">
+            <div class="empty"><div class="ico">📋</div><p>No changes yet.</p></div>
+          </div>
+          <div class="log-stats">
+            <div class="log-stat"><div class="log-stat-val" id="statTotal">0</div><div class="log-stat-lbl">Changes</div></div>
+            <div class="log-stat"><div class="log-stat-val" id="statUsers">0</div><div class="log-stat-lbl">Users</div></div>
+            <div class="log-stat"><div class="log-stat-val" id="statAvailable">0</div><div class="log-stat-lbl">Available</div></div>
+            <div class="log-stat"><div class="log-stat-val" id="statBusy">0</div><div class="log-stat-lbl">Busy</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div class="footer-l">Powered by <strong>entconn</strong> · Teams Presence Monitor</div>
+      <div class="footer-r">Auto-refreshes every 2 minutes · <span id="footerUsers">0</span> users tracked</div>
+    </div>
+  </div>
+</div>
+
+<script>
+let msalInstance = null, allUsers = [], allEvents = [], activeFilter = null, pollTimer = null;
+let CONFIG = { siteId:'', listId:'', tenantId:'', clientId:'' };
+
+const STATUS = {
+  Available:    { hex:'#16a34a', label:'Available' },
+  OnACall:      { hex:'#0891b2', label:'On a Call' },
+  Busy:         { hex:'#dc2626', label:'Busy' },
+  Away:         { hex:'#d97706', label:'Away' },
+  DoNotDisturb: { hex:'#7c3aed', label:'Do Not Disturb' },
+  BeRightBack:  { hex:'#ea580c', label:'Be Right Back' },
+  Offline:      { hex:'#6b7280', label:'Offline' },
+};
+
+function getStatus(s) { return STATUS[s] || STATUS.Offline; }
+function initials(n) { if(!n) return '?'; return n.split(' ').map(x=>x[0]).join('').toUpperCase().slice(0,2); }
+
+function parseDate(d) {
+  if (!d) return null;
+  const str = String(d).trim();
+  const m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})\s+(AM|PM)$/i);
+  if (m) {
+    let [,day,mon,yr,hr,min,sec,ampm] = m;
+    hr = parseInt(hr);
+    if (/pm/i.test(ampm) && hr < 12) hr += 12;
+    if (/am/i.test(ampm) && hr === 12) hr = 0;
+    return new Date(parseInt(yr), parseInt(mon)-1, parseInt(day), hr, parseInt(min), parseInt(sec));
+  }
+  const dt = new Date(str);
+  if (!isNaN(dt.getTime())) return dt;
+  return null;
+}
+
+function timeSince(d) {
+  if(!d) return '—';
+  const dt = (d instanceof Date) ? d : parseDate(d);
+  if (!dt || isNaN(dt.getTime())) return '—';
+  const s = Math.floor((new Date() - dt) / 1000);
+  if (s <= 0) return 'just now';
+  if (s < 60) return 'just now';
+  const m = Math.floor(s / 60);
+  if (m < 60) return m + ' min';
+  const h = Math.floor(m / 60);
+  const rem = m % 60;
+  return rem > 0 ? h + 'h ' + rem + 'm' : h + 'h';
+}
+
+function sinceTime(d) {
+  if(!d) return '';
+  const dt = (d instanceof Date) ? d : parseDate(d);
+  if (!dt || isNaN(dt.getTime())) return '';
+  return 'since ' + dt.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+}
+
+function formatTime(d) {
+  if(!d) return '—';
+  try { return new Date(d).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); } catch{return '—';}
+}
+
+async function signIn() {
+  const clientId = '1f3156f8-8f31-4aa4-94da-565e84ee063e';
+  const tenantId = 'bbc7e0df-e460-46ed-8dcf-5bb747e59f80';
+  CONFIG.siteId  = '82780b6c-ade6-4272-bf2e-0aef53df4d0e';
+  CONFIG.listId  = '8c5d3e96-d5f4-4123-b0e9-be0b5687d999';
+  CONFIG.clientId = clientId; CONFIG.tenantId = tenantId;
+
+  msalInstance = new msal.PublicClientApplication({
+    auth: { clientId, authority: `https://login.microsoftonline.com/${tenantId}`, redirectUri: window.location.href.split('?')[0].split('#')[0] },
+    cache: { cacheLocation: 'sessionStorage' }
+  });
+  await msalInstance.initialize();
+  try {
+    await msalInstance.loginPopup({ scopes: ['https://graph.microsoft.com/Sites.Read.All'] });
+    showDashboard(); loadData(); startPolling();
+  } catch(err) { alert('Sign in failed: ' + err.message); }
+}
+
+async function getToken() {
+  const accounts = msalInstance.getAllAccounts();
+  if (!accounts.length) throw new Error('No signed in account.');
+  const result = await msalInstance.acquireTokenSilent({ scopes: ['https://graph.microsoft.com/Sites.Read.All'], account: accounts[0] });
+  return result.accessToken;
+}
+
+function signOut() { localStorage.clear(); location.reload(); }
+
+async function fetchItems(token) {
+  const url = `https://graph.microsoft.com/v1.0/sites/${CONFIG.siteId}/lists/${CONFIG.listId}/items?$expand=fields&$orderby=fields/changedAt desc&$top=200`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}`, 'Prefer': 'HonorNonIndexedQueriesWarningMayFailRandomly' } });
+  const data = await res.json();
+  if (!data.value) throw new Error(data.error?.message || 'Failed to fetch items.');
+  return data.value.map(i => i.fields);
+}
+
+function processData(items) {
+  const userMap = {}, events = [];
+  const sorted = [...items].sort((a,b) => { const da=parseDate(a.changedAt),db=parseDate(b.changedAt); if(!da&&!db)return 0; if(!da)return 1; if(!db)return-1; return db-da; });
+  sorted.forEach(item => {
+    const userId = item.userId || item.Title;
+    if (!userId) return;
+    if (item.previousStatus && item.previousStatus.trim() !== '') {
+      events.push({ name: item.displayName||item.Title||userId, from: item.previousStatus, to: item.newStatus||'Unknown', time: item.changedAt ? parseDate(item.changedAt) : null });
+    }
+    const rawStatus = item.newStatus || 'Offline';
+    const activity = item.activity || '';
+    const effectiveStatus = (activity === 'InACall' || activity === 'InAConferenceCall') ? 'OnACall' : rawStatus;
+    if (!userMap[userId]) userMap[userId] = { id:userId, name:item.displayName||item.Title||userId, status:effectiveStatus, activity:activity, since:item.changedAt?parseDate(item.changedAt):null };
+  });
+  return { users: Object.values(userMap), events: events.slice(0,100) };
+}
+
+async function loadData() {
+  setLoading(true); hideError();
+  try {
+    const token = await getToken();
+    const items = await fetchItems(token);
+    const { users, events } = processData(items);
+    allUsers = users; allEvents = events;
+    renderAll();
+    document.getElementById('lastUpdated').textContent = new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  } catch(err) { showError(err.message); }
+  finally { setLoading(false); }
+}
+
+function renderAll() { renderCounts(); renderUsers(); renderLog(); renderStats(); }
+
+function renderCounts() {
+  const c = {}; Object.keys(STATUS).forEach(s=>c[s]=0);
+  allUsers.forEach(u=>{ if(c[u.status]!==undefined) c[u.status]++; else c['Offline']++; });
+  Object.keys(STATUS).forEach(s=>{ const el=document.getElementById('count-'+s); if(el) el.textContent=c[s]||0; });
+  document.getElementById('kpiTotal').textContent = allUsers.length;
+  document.getElementById('kpiAvailable').textContent = c['Available']||0;
+  document.getElementById('kpiOnCall').textContent = c['OnACall']||0;
+  document.getElementById('kpiOffline').textContent = c['Offline']||0;
+  document.getElementById('userCount').textContent = `${allUsers.length} user${allUsers.length!==1?'s':''} monitored`;
+  document.getElementById('footerUsers').textContent = allUsers.length;
+}
+
+function renderUsers() {
+  const grid = document.getElementById('userGrid');
+  const users = activeFilter ? allUsers.filter(u=>u.status===activeFilter) : allUsers;
+  document.getElementById('sectionTitle').textContent = activeFilter ? `${getStatus(activeFilter).label} — ${users.length} user${users.length!==1?'s':''}` : `All Users — ${allUsers.length}`;
+  document.getElementById('clearFilter').style.display = activeFilter ? 'inline-block' : 'none';
+  if (!users.length) { grid.innerHTML=`<div class="empty" style="grid-column:1/-1"><div class="ico">👤</div><p>No users with this status.</p></div>`; return; }
+  grid.innerHTML = users.map((u,i) => {
+    const st = getStatus(u.status);
+    const dur = (u.status === 'Offline' && !u.since) ? '—' : timeSince(u.since);
+    const since = (dur !== '—' && u.since) ? sinceTime(u.since) : '';
+    return `<div class="user-card" style="--card-color:${st.hex};animation-delay:${i*0.04}s">
+      <div class="avatar-wrap"><div class="avatar">${initials(u.name)}</div><div class="avatar-dot"></div></div>
+      <div class="uinfo"><div class="uname">${u.name}</div><div class="ubadge"><div class="ubadge-dot"></div>${st.label}</div></div>
+      <div class="udur"><div class="udur-val">${dur}</div>${since ? `<div class="udur-since">${since}</div>` : ''}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderLog() {
+  const body = document.getElementById('logBody');
+  document.getElementById('logCount').textContent = allEvents.length;
+  if (!allEvents.length) { body.innerHTML=`<div class="empty"><div class="ico">📋</div><p>No changes recorded yet.</p></div>`; return; }
+  body.innerHTML = allEvents.map((ev,i) => {
+    const t = getStatus(ev.to);
+    return `<div class="log-row" style="animation-delay:${i*0.02}s">
+      <div class="log-avatar">${initials(ev.name)}</div>
+      <div class="log-info">
+        <div class="log-who">${ev.name}</div>
+        <span class="log-to" style="color:${t.hex};background:${t.hex}15;border:1px solid ${t.hex}28">
+          <span style="width:4px;height:4px;border-radius:50%;background:${t.hex};display:inline-block;flex-shrink:0"></span> ${t.label}
+        </span>
+      </div>
+      <div class="log-when">${formatTime(ev.time)}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderStats() {
+  document.getElementById('statTotal').textContent = allEvents.length;
+  document.getElementById('statUsers').textContent = allUsers.length;
+  document.getElementById('statAvailable').textContent = allUsers.filter(u=>u.status==='Available').length;
+  document.getElementById('statBusy').textContent = allUsers.filter(u=>u.status==='Busy').length;
+}
+
+function filterStatus(s) {
+  activeFilter=s;
+  document.querySelectorAll('.stat-tile').forEach(c=>c.classList.remove('active'));
+  if(s) document.getElementById('card-'+s)?.classList.add('active');
+  renderUsers();
+}
+
+function startPolling() { if(pollTimer) clearInterval(pollTimer); pollTimer=setInterval(loadData,120000); }
+function showDashboard() { document.getElementById('loginScreen').style.display='none'; document.getElementById('dashboard').style.display='block'; }
+function setLoading(on) { document.getElementById('loadingBar').classList.toggle('on',on); }
+function showError(msg) { document.getElementById('errorText').textContent=msg; document.getElementById('errorBanner').classList.add('on'); }
+function hideError() { document.getElementById('errorBanner').classList.remove('on'); }
+
+setInterval(()=>{ if(allUsers.length) renderUsers(); },60000);
+let quickTicks=0;
+const quickTimer=setInterval(()=>{ if(allUsers.length) renderUsers(); quickTicks++; if(quickTicks>=30) clearInterval(quickTimer); },10000);
+</script>
+</body>
+</html>
